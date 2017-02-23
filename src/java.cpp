@@ -1203,7 +1203,7 @@ std::string to_string(T value) {
   return os.str();
 }
 
-#if NODE_MINOR_VERSION >= 10
+#if NODE_MAJOR_VERSION >= 1 || (NODE_MAJOR_VESION == 0 && NODE_MINOR_VERSION >= 10)
 void EIO_AfterCallJs(uv_work_t* req, int status) {
 #else
 void EIO_AfterCallJs(uv_work_t* req) {
@@ -1320,7 +1320,7 @@ JNIEXPORT jobject JNICALL Java_node_NodeDynamicProxyClass_callJs(JNIEnv *env, jo
   uv_work_t* req = new uv_work_t();
   req->data = dynamicProxyData;
   if(myThreadId == v8ThreadId) {
-#if NODE_MINOR_VERSION >= 10
+#if NODE_MAJOR_VERSION >= 1 || (NODE_MAJOR_VESION == 0 && NODE_MINOR_VERSION >= 10)
     EIO_AfterCallJs(req, 0);
 #else
     EIO_AfterCallJs(req);
