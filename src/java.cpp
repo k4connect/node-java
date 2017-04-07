@@ -9,12 +9,17 @@
 #include "methodCallBaton.h"
 #include "node_NodeDynamicProxyClass.h"
 #include <node_version.h>
+#include <queue>
 #include <sstream>
 #include <nan.h>
 
 #define DYNAMIC_PROXY_JS_ERROR -4
 
 long v8ThreadId;
+
+std::queue<DynamicProxyJsCallData *> queue_dynamicProxyJsCallData;
+uv_mutex_t uvMutex_dynamicProxyJsCall;
+uv_async_t uvAsync_dynamicProxyJsCall;
 
 /*static*/ Nan::Persistent<v8::FunctionTemplate> Java::s_ct;
 /*static*/ std::string Java::s_nativeBindingLocation;
@@ -35,10 +40,33 @@ long my_getThreadId() {
 #endif
 }
 
+void EIO_CallJs(DynamicProxyJsCallData *callData);
+
+void uvAsyncCb_dynamicProxyJsCall(uv_async_t *handle) {
+  DynamicProxyJsCallData *callData;
+  do {
+    uv_mutex_lock(&uvMutex_dynamicProxyJsCall);
+    if(!queue_dynamicProxyJsCallData.empty()) {
+      callData = queue_dynamicProxyJsCallData.front();
+      queue_dynamicProxyJsCallData.pop();
+    } else {
+      callData = NULL;
+    }
+    uv_mutex_unlock(&uvMutex_dynamicProxyJsCall);
+
+    if(callData) {
+      EIO_CallJs(callData);
+    }
+  } while(callData);
+}
+
 /*static*/ void Java::Init(v8::Handle<v8::Object> target) {
   Nan::HandleScope scope;
 
   v8ThreadId = my_getThreadId();
+
+  uv_mutex_init(&uvMutex_dynamicProxyJsCall);
+  uv_async_init(uv_default_loop(), &uvAsync_dynamicProxyJsCall, uvAsyncCb_dynamicProxyJsCall);
 
   v8::Local<v8::FunctionTemplate> t = Nan::New<v8::FunctionTemplate>(New);
   s_ct.Reset(t);
@@ -1193,9 +1221,6 @@ NAN_METHOD(Java::instanceOf) {
   info.GetReturnValue().Set(Nan::New<v8::Boolean>(res));
 }
 
-void EIO_CallJs(uv_work_t* req) {
-}
-
 template <typename T>
 std::string to_string(T value) {
   std::ostringstream os;
@@ -1203,12 +1228,7 @@ std::string to_string(T value) {
   return os.str();
 }
 
-#if NODE_VERSION_AT_LEAST(0, 10, 0)
-void EIO_AfterCallJs(uv_work_t* req, int status) {
-#else
-void EIO_AfterCallJs(uv_work_t* req) {
-#endif
-  DynamicProxyJsCallData* callData = static_cast<DynamicProxyJsCallData*>(req->data);
+void EIO_CallJs(DynamicProxyJsCallData *callData) {
   DynamicProxyData* dynamicProxyData = callData->dynamicProxyData;
 
   assert(callData->done == 0);
@@ -1324,14 +1344,8 @@ JNIEXPORT jobject JNICALL Java_node_NodeDynamicProxyClass_callJs(JNIEnv *env, jo
   callData.methodName = javaObjectToString(env, env->CallObjectMethod(method, method_getName));
   assertNoException(env);
 
-  uv_work_t* req = new uv_work_t();
-  req->data = &callData; // we wait for work to finish, so ok to pass ref to local var
   if(myThreadId == v8ThreadId) {
-#if NODE_VERSION_AT_LEAST(0, 10, 0)
-    EIO_AfterCallJs(req, 0);
-#else
-    EIO_AfterCallJs(req);
-#endif
+    EIO_CallJs(&callData);
   } else {
     if (args) {
       // if args is not null and we have to kick this across the thread boundary, make it a global ref
@@ -1339,7 +1353,10 @@ JNIEXPORT jobject JNICALL Java_node_NodeDynamicProxyClass_callJs(JNIEnv *env, jo
       hasArgsGlobalRef = true;
     }
 
-    uv_queue_work(uv_default_loop(), req, EIO_CallJs, (uv_after_work_cb)EIO_AfterCallJs);
+    uv_mutex_lock(&uvMutex_dynamicProxyJsCall);
+    queue_dynamicProxyJsCallData.push(&callData); // we wait for work to finish, so ok to pass ref to local var
+    uv_mutex_unlock(&uvMutex_dynamicProxyJsCall);
+    uv_async_send(&uvAsync_dynamicProxyJsCall);
 
     while(!callData.done) {
       my_sleep(100);
