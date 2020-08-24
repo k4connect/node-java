@@ -485,6 +485,9 @@ jvalueType javaGetArrayComponentType(JNIEnv *env, jobjectArray array) {
 v8::Local<v8::ArrayBuffer> newArrayBuffer(void* elems, size_t length) {
   v8::Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(v8::Isolate::GetCurrent(), length);
   Nan::TypedArrayContents<char*> abContents(ab);
+  // FIXME: FOR DEBUGGING ONLY
+  std::cout << "Gonna memcpy the ArrayBuffer..." << std::endl;
+  std::cout << *abContents << std::endl;
   memcpy(*abContents, elems, length);
   return ab;
 }
