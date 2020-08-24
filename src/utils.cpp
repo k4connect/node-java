@@ -484,16 +484,12 @@ jvalueType javaGetArrayComponentType(JNIEnv *env, jobjectArray array) {
 #if NODE_VERSION_AT_LEAST(13, 0, 0)
   v8::Local<v8::ArrayBuffer> newArrayBuffer(void* elems, size_t length) {
     v8::Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(v8::Isolate::GetCurrent(), length);
-    // FIXME: FOR DEBUGGING ONLY
-    printf("Gonna memcpy the ArrayBuffer modern style...\n");
     memcpy(ab->GetBackingStore()->Data(), elems, length);
     return ab;
   }
 #elif NODE_VERSION_AT_LEAST(4, 0, 0)
   v8::Local<v8::ArrayBuffer> newArrayBuffer(void* elems, size_t length) {
     v8::Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(v8::Isolate::GetCurrent(), length);
-    // FIXME: FOR DEBUGGING ONLY
-    printf("Gonna memcpy the ArrayBuffer legacy style...\n");
     memcpy(ab->GetContents().Data(), elems, length);
     return ab;
   }
