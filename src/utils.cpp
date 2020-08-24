@@ -5,6 +5,7 @@
 #include <set>
 #include "javaObject.h"
 #include "java.h"
+#include <node_version.h>
 
 #define MODIFIER_STATIC 9
 
