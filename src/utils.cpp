@@ -5,7 +5,6 @@
 #include <set>
 #include "javaObject.h"
 #include "java.h"
-#include <node_version.h>
 
 #define MODIFIER_STATIC 9
 
@@ -482,7 +481,7 @@ jvalueType javaGetArrayComponentType(JNIEnv *env, jobjectArray array) {
   return arrayComponentType;
 }
 
-#if NODE_MAJOR_VERSION >= 13
+#if NODE_VERSION_AT_LEAST(13, 0, 0)
   v8::Local<v8::ArrayBuffer> newArrayBuffer(void* elems, size_t length) {
     v8::Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(v8::Isolate::GetCurrent(), length);
     // FIXME: FOR DEBUGGING ONLY
@@ -490,7 +489,7 @@ jvalueType javaGetArrayComponentType(JNIEnv *env, jobjectArray array) {
     memcpy(ab->GetBackingStore()->Data(), elems, length);
     return ab;
   }
-#elif NODE_MAJOR_VERSION >= 4
+#elif NODE_VERSION_AT_LEAST(4, 0, 0)
   v8::Local<v8::ArrayBuffer> newArrayBuffer(void* elems, size_t length) {
     v8::Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(v8::Isolate::GetCurrent(), length);
     // FIXME: FOR DEBUGGING ONLY
