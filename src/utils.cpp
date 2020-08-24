@@ -339,8 +339,10 @@ jobject v8ToJava(JNIEnv* env, v8::Local<v8::Value> arg) {
   }
 
   if(arg->IsString()) {
-    v8::String::Value val(arg->ToString());
-    return env->NewString(*val, val.length());
+    v8::MaybeLocal<v8::String> valMaybe = Nan::To<v8::String>(arg);
+    Nan::Utf8String val(valMaybe.ToLocalChecked());
+    const char *valStr = *val;
+    return env->NewStringUTF(valStr);
   }
 
   if(arg->IsInt32() || arg->IsUint32()) {
@@ -644,7 +646,7 @@ v8::Local<v8::Value> javaArrayToV8(Java* java, JNIEnv* env, jobjectArray objArra
   default:
     for(jsize i=0; i<arraySize; i++) {
         jobject obj = env->GetObjectArrayElement(objArray, i);
-        v8::Handle<v8::Value> item = javaToV8(java, env, obj);
+        v8::Local<v8::Value> item = javaToV8(java, env, obj);
         result->Set(i, item);
     }
     break;

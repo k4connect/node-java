@@ -7,7 +7,7 @@
 
 /*static*/ std::map<std::string, Nan::Persistent<v8::FunctionTemplate>*> JavaObject::sFunctionTemplates;
 
-/*static*/ void JavaObject::Init(v8::Handle<v8::Object> target) {
+/*static*/ void JavaObject::Init(v8::Local<v8::Object> target) {
 }
 
 /*static*/ v8::Local<v8::Object> JavaObject::New(Java *java, jobject obj) {
@@ -69,8 +69,27 @@
 
       if (java->DoPromise()) {
         v8::Local<v8::Object> recv = Nan::New<v8::Object>();
-        v8::Local<v8::Value> argv[] = { methodCallTemplate->GetFunction() };
-        v8::Local<v8::Value> result = promisify->Call(recv, 1, argv);
+        Nan::MaybeLocal<v8::Function> mcFuncMaybe = Nan::GetFunction(methodCallTemplate);
+
+        if (mcFuncMaybe.IsEmpty()) {
+          fprintf(stderr, "Method call needs to exist. Was empty\n");
+          assert(!mcFuncMaybe.IsEmpty());
+        }
+
+        v8::Local<v8::Value> argv[] = { mcFuncMaybe.ToLocalChecked() };
+        Nan::MaybeLocal<v8::Value> resultMaybe = Nan::Call(
+          promisify,
+          recv,
+          1,
+          argv
+        );
+
+        if (resultMaybe.IsEmpty()) {
+          fprintf(stderr, "Promisified wrapper was not unwrappable to a function -- asyncOptions.promisify must unwrap to a function.\n");
+          assert(!resultMaybe.IsEmpty());
+        }
+
+        v8::Local<v8::Value> result = resultMaybe.ToLocalChecked();
         if (!result->IsFunction()) {
           fprintf(stderr, "Promisified result is not a function -- asyncOptions.promisify must return a function.\n");
           assert(result->IsFunction());
@@ -140,7 +159,7 @@ NAN_METHOD(JavaObject::methodCall) {
   JNIEnv *env = self->m_java->getJavaEnv();
   JavaScope javaScope(env);
 
-  v8::String::Utf8Value methodName(info.Data());
+  Nan::Utf8String methodName(info.Data());
   std::string methodNameStr = *methodName;
 
   int argsStart = 0;
@@ -176,7 +195,7 @@ NAN_METHOD(JavaObject::methodCallSync) {
   JNIEnv *env = self->m_java->getJavaEnv();
   JavaScope javaScope(env);
 
-  v8::String::Utf8Value methodName(info.Data());
+  Nan::Utf8String methodName(info.Data());
   std::string methodNameStr = *methodName;
 
   int argsStart = 0;
@@ -209,16 +228,24 @@ NAN_METHOD(JavaObject::methodCallSync) {
 NAN_METHOD(JavaObject::methodCallPromise) {
   Nan::HandleScope scope;
   v8::Local<v8::Function> fn = info.Data().As<v8::Function>();
-  v8::Handle<v8::Value>* argv = new v8::Handle<v8::Value>[info.Length()];
+  v8::Local<v8::Value>* argv = new v8::Local<v8::Value>[info.Length()];
   for (int i = 0 ; i < info.Length(); i++) {
     argv[i] = info[i];
   }
-  
-  v8::Local<v8::Value> result = fn->Call(info.This(), info.Length(), argv);
-  
+
+  Nan::MaybeLocal<v8::Value> resultMaybe = Nan::Call(
+    fn,
+    info.This(),
+    info.Length(),
+    argv
+  );
+
   delete[] argv;
-  
-  info.GetReturnValue().Set(result);
+
+  if (!resultMaybe.IsEmpty()) {
+    v8::Local<v8::Value> result = resultMaybe.ToLocalChecked();
+    info.GetReturnValue().Set(result);
+  }
 }
 
 NAN_GETTER(JavaObject::fieldGetter) {
@@ -227,7 +254,7 @@ NAN_GETTER(JavaObject::fieldGetter) {
   JNIEnv *env = self->m_java->getJavaEnv();
   JavaScope javaScope(env);
 
-  v8::String::Utf8Value propertyCStr(property);
+  Nan::Utf8String propertyCStr(property);
   std::string propertyStr = *propertyCStr;
   jobject field = javaFindField(env, self->m_class, propertyStr);
   if(field == NULL) {
@@ -278,7 +305,7 @@ NAN_SETTER(JavaObject::fieldSetter) {
 
   jobject newValue = v8ToJava(env, value);
 
-  v8::String::Utf8Value propertyCStr(property);
+  Nan::Utf8String propertyCStr(property);
   std::string propertyStr = *propertyCStr;
   jobject field = javaFindField(env, self->m_class, propertyStr);
   if(field == NULL) {
@@ -345,7 +372,8 @@ NAN_INDEX_GETTER(JavaObject::indexGetter) {
 v8::Local<v8::Object> JavaProxyObject::New(Java *java, jobject obj, DynamicProxyData* dynamicProxyData) {
   Nan::EscapableHandleScope scope;
 
-  v8::Local<v8::Function> ctor = Nan::New(s_proxyCt)->GetFunction();
+  Nan::MaybeLocal<v8::Function> ctorMaybe = Nan::GetFunction(Nan::New(s_proxyCt));
+  v8::Local<v8::Function> ctor = ctorMaybe.ToLocalChecked();
   v8::Local<v8::Object> javaObjectObj = Nan::NewInstance(ctor).ToLocalChecked();
   SetHiddenValue(javaObjectObj, Nan::New<v8::String>(V8_HIDDEN_MARKER_JAVA_OBJECT).ToLocalChecked(), Nan::New<v8::Boolean>(true));
   JavaProxyObject *self = new JavaProxyObject(java, obj, dynamicProxyData);
