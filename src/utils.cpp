@@ -482,21 +482,19 @@ jvalueType javaGetArrayComponentType(JNIEnv *env, jobjectArray array) {
   return arrayComponentType;
 }
 
-#if NODE_VERSION_AT_LEAST(13, 0, 0)
+#if NODE_MAJOR_VERSION >= 13
   v8::Local<v8::ArrayBuffer> newArrayBuffer(void* elems, size_t length) {
     v8::Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(v8::Isolate::GetCurrent(), length);
     // FIXME: FOR DEBUGGING ONLY
-    printf("Gonna memcpy the ArrayBuffer...\n");
-    printf("Standard (modern) V8 ArrayBuffer contents: %s\n", ab->GetBackingStore()->Data());
+    printf("Gonna memcpy the ArrayBuffer modern style...\n");
     memcpy(ab->GetBackingStore()->Data(), elems, length);
     return ab;
   }
-#elif NODE_VERSION_AT_LEAST(4, 0, 0)
+#elif NODE_MAJOR_VERSION >= 4
   v8::Local<v8::ArrayBuffer> newArrayBuffer(void* elems, size_t length) {
     v8::Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(v8::Isolate::GetCurrent(), length);
     // FIXME: FOR DEBUGGING ONLY
-    printf("Gonna memcpy the ArrayBuffer...\n");
-    printf("Standard (legacy) V8 ArrayBuffer contents: %s\n", ab->GetContents()->Data());
+    printf("Gonna memcpy the ArrayBuffer legacy style...\n");
     memcpy(ab->GetContents().Data(), elems, length);
     return ab;
   }
