@@ -486,8 +486,8 @@ v8::Local<v8::ArrayBuffer> newArrayBuffer(void* elems, size_t length) {
   v8::Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(v8::Isolate::GetCurrent(), length);
   Nan::TypedArrayContents<char*> abContents(ab);
   // FIXME: FOR DEBUGGING ONLY
-  std::cout << "Gonna memcpy the ArrayBuffer..." << std::endl;
-  std::cout << *abContents << std::endl;
+  printf("Gonna memcpy the ArrayBuffer...\n");
+  printf("ArrayBuffer contents: %s\n", *abContents);
   memcpy(*abContents, elems, length);
   return ab;
 }
